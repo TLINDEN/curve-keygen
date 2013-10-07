@@ -1,0 +1,87 @@
+=head1 NAME
+
+curve-keygen - a utility to generate CURVE25519 keypairs.
+
+=head1 SYNOPSIS
+
+ Usage: curve-genkey [options]
+
+ Options:
+  -f <keyfile>    Filename for the key, default: 'id_curve25519'.
+  -n <name>       Your name
+  -m <mail>       Your email address
+  -o <org>        Your organization
+  -y              Read private key file and print public key, requires -s
+  -s <secretfile> File containing a secret key
+  -c              Don't encrypt the secret key (CZMQ default)
+  -h              print this help message
+  -v              print program version
+
+=head1 DESCRIPTION
+
+B<curve-genkey> generates a CURVE25519 keypair. It stores the public
+key in CZMQ's zcert format and the private key in binary form. If
+the option B<-c> have been supplied or if no passphrase provided, the
+private key will be stored in zcert format as well.
+
+=head1 LIBRARY
+
+A library B<libcsk> is available which can be used from client programs
+to access encrypted private keys. Example usage:
+
+ #include <csk.h>
+ #include <czmq.h>
+ 
+ int main() {
+   size_t rawsize;
+   char secretfile[] = "id_curve25519_secret";
+   char passphrase[] = "my password";
+   unsigned char *raw = csk_raw_load(secretfile, &rawsize);
+   zcert_t *cert = csk_zcert_decrypt(raw, passphrase, rawsize);
+   if(cert != NULL) {
+     // do something with cert
+   }
+   return 0;
+ }
+
+Compile the client program with B<-lcsk> ld flag.
+
+=head1 FILES
+
+B<curve-keygen> creates by default files in the current directory. If
+not further specified these are:
+
+=over
+
+=item B<id_curve25519_secret>
+
+The encrypted private key in binary form. If the private key
+is saved without encryption this file will be in CZMQ zcert format.
+
+=item B<id_curve25519>
+
+The public key in CZMQ zcert format.
+
+=back
+
+=head1 BUGS
+
+Currently B<curve-keygen> stores the encrypted private key as
+raw binary stream to disk. This is not portable. A future version
+will save the key in IETF format or - once CZMQ provides support for it - 
+in zcert-secret-format (however that might be named then).
+
+=head1 COPYRIGHT
+
+Copyright (c) 2013 by T.Linden <tom AT cpan DOT org>
+
+=head1 AUTHORS
+
+I<T.Linden <tom AT cpan DOT org>>
+
+=head1 LICENSE
+
+Licensed under the  GNU GENERAL PUBLIC LICENSE version 3.
+
+=cut
+

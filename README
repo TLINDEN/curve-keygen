@@ -1,0 +1,70 @@
+NAME
+    curve-keygen - a utility to generate CURVE25519 keypairs.
+
+SYNOPSIS
+     Usage: curve-genkey [options]
+
+     Options:
+      -f <keyfile>    Filename for the key, default: 'id_curve25519'.
+      -n <name>       Your name
+      -m <mail>       Your email address
+      -o <org>        Your organization
+      -y              Read private key file and print public key, requires -s
+      -s <secretfile> File containing a secret key
+      -c              Don't encrypt the secret key (CZMQ default)
+      -h              print this help message
+      -v              print program version
+
+DESCRIPTION
+    curve-genkey generates a CURVE25519 keypair. It stores the public key in
+    CZMQ's zcert format and the private key in binary form. If the option -c
+    have been supplied or if no passphrase provided, the private key will be
+    stored in zcert format as well.
+
+LIBRARY
+    A library libcsk is available which can be used from client programs to
+    access encrypted private keys. Example usage:
+
+     #include <csk.h>
+     #include <czmq.h>
+ 
+     int main() {
+       size_t rawsize;
+       char secretfile[] = "id_curve25519_secret";
+       char passphrase[] = "my password";
+       unsigned char *raw = csk_raw_load(secretfile, &rawsize);
+       zcert_t *cert = csk_zcert_decrypt(raw, passphrase, rawsize);
+       if(cert != NULL) {
+         // do something with cert
+       }
+       return 0;
+     }
+
+    Compile the client program with -lcsk ld flag.
+
+FILES
+    curve-keygen creates by default files in the current directory. If not
+    further specified these are:
+
+    id_curve25519_secret
+        The encrypted private key in binary form. If the private key is
+        saved without encryption this file will be in CZMQ zcert format.
+
+    id_curve25519
+        The public key in CZMQ zcert format.
+
+BUGS
+    Currently curve-keygen stores the encrypted private key as raw binary
+    stream to disk. This is not portable. A future version will save the key
+    in IETF format or - once CZMQ provides support for it - in
+    zcert-secret-format (however that might be named then).
+
+COPYRIGHT
+    Copyright (c) 2013 by T.Linden <tom AT cpan DOT org>
+
+AUTHORS
+    *T.Linden <tom AT cpan DOT org*>
+
+LICENSE
+    Licensed under the GNU GENERAL PUBLIC LICENSE version 3.
+
