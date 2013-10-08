@@ -61,8 +61,8 @@ void csk_zcert2raw(unsigned char *dump, zcert_t *cert) {
   unsigned char p[32];
   zmq_z85_decode(s, secret);
   zmq_z85_decode(p, public);
-  pr(s, 32);
-  pr(p, 32);
+  //pr(s, 32);
+  //pr(p, 32);
 
   int pos = 0;
   pos = csk_append(dump, name, pos);
@@ -98,8 +98,8 @@ zcert_t *csk_raw2cert(unsigned char *raw, size_t rawlen) {
   zmq_z85_decode(secret, secret_z85);
   zmq_z85_decode(public, public_z85);
 
-  pr(secret, 32);
-  pr(public, 32);
+  //pr(secret, 32);
+  //pr(public, 32);
 
   zcert_t *cert = zcert_new_from(public, secret);
 
@@ -202,36 +202,161 @@ zcert_t *csk_zcert_decrypt(unsigned char *combined, char *passphrase, size_t cle
   }
 }
 
+unsigned char *csk_padfour(unsigned char *src, size_t srclen, size_t *dstlen) {
+  int i;
+  size_t outlen;
+  unsigned char *dst;
+ 
+  outlen = srclen + 1; // 1 for the pad flag
+  while (outlen % 4 != 0) outlen++;
+
+  dst = ucmalloc(outlen);
+
+  dst[0] = outlen - (srclen + 1);              // add the number of zeros we add
+  for(i=1; i<srclen+1; ++i) dst[i] = src[i -1];    // add the original
+  for(i=srclen+1; i<outlen; ++i) dst[i] = '\0';  // pad with zeroes
+
+  *dstlen = outlen;
+
+  return dst;
+}
+
+unsigned char *csk_unpadfour(unsigned char *src, size_t srclen, size_t *dstlen) {
+  int i;
+  size_t outlen;
+  size_t numzeroes;
+  unsigned char *dst;
+
+  numzeroes = src[0];  // first byte tells us how many zeroes we've got
+  outlen = srclen - 1 - numzeroes;
+  
+  dst = malloc(outlen);
+
+  for (i=1; i<outlen+1; ++i) dst[i-1] = src[i]; // copy the remainder without the zeroes
+
+  *dstlen = outlen;
+
+  return dst;
+}
+
+unsigned char *csk_z85_decode(char *z85block, size_t *dstlen) {
+  unsigned char *bin;
+  int i, pos;
+  size_t zlen, binlen, outlen; 
+
+  zlen = strlen(z85block);
+  char *z85 = ucmalloc(zlen);
+
+  // remove newlines
+  pos = 0;
+  for(i=0; i<zlen; ++i) {
+    if(z85block[i] != '\r' && z85block[i] != '\n') {
+      z85[pos] = z85block[i];
+      pos++;
+    }
+  }
+
+  binlen = strlen (z85) * 4 / 5; 
+  bin = ucmalloc(binlen);
+  bin = zmq_z85_decode(bin, z85);
+  unsigned char *raw = csk_unpadfour(bin, binlen, &outlen);
+
+  free(z85);
+  free(bin); 
+
+  *dstlen = outlen;
+  return raw;
+}
+
+char *csk_z85_encode(unsigned char *raw, size_t srclen, size_t *dstlen) {
+  int i, pos, b;
+  size_t outlen, blocklen, zlen;
+
+  // make z85 happy (size % 4)
+  unsigned char *padded = csk_padfour(raw, srclen, &outlen);
+
+  // encode to z85
+  zlen = (outlen * 5 / 4) + 1;
+  char *z85 = ucmalloc(zlen);
+  z85 = zmq_z85_encode(z85, padded, outlen);
+
+  // make it a 72 chars wide block
+  blocklen = strlen(z85) + ((strlen(z85) / 72) * 2) + 1;
+  char *z85block = ucmalloc(blocklen);
+  pos = b = 0;
+  for(i=0; i<zlen; ++i) {
+    if(pos == 72) {
+      z85block[b] = '\r';
+      b++;
+      z85block[b] = '\n';
+      b++;
+      pos = 0;
+    }
+    else {
+      pos++;
+    }
+    z85block[b] = z85[i];
+    b++;
+  }
+
+  *dstlen = blocklen;
+  free(z85);
+  free(padded);
+
+  return z85block;
+}
+
 int csk_raw_save(unsigned char *raw, char *filename, size_t clen) {
   FILE *fd = fopen(filename,"wb");
   if(fd == NULL) {
     return -1;
   }
 
-  fwrite(raw, 1, clen, fd);
+  // convert to z85 encoded block
+  size_t blocklen;
+  char *z85block = csk_z85_encode(raw, clen, &blocklen);
+
+  fprintf(fd, "%s\r\n%s\r\n%s\r\n", CSK_KEYFILE_HEAD, z85block, CSK_KEYFILE_FOOT);
 
   fclose(fd);
 
+  free(z85block);
   return 0;
 }
 
 unsigned char *csk_raw_load(char *filename, size_t *clen) {
-  unsigned char *raw;
+  char *raw;
+  size_t rawlen, zlen;
 
   FILE *fd = fopen(filename,"rb");
   if(fd == NULL) {
+    return NULL; // fixme: print error
+  }
+
+  // read encoded block with headers
+  fseek(fd, 0, SEEK_END);
+  rawlen = ftell(fd);
+  fseek(fd, 0, SEEK_SET);
+  raw = ucmalloc(rawlen + 1);
+  fread(raw, rawlen, 1, fd);
+
+  if(rawlen > strlen(CSK_KEYFILE_HEAD) + strlen(CSK_KEYFILE_FOOT) + 48 &&
+     strncmp(raw, CSK_KEYFILE_HEAD, strlen(CSK_KEYFILE_HEAD)) == 0) {
+    zlen = rawlen - strlen(CSK_KEYFILE_HEAD) - strlen(CSK_KEYFILE_FOOT) - 3; // 3 = 2x2 newlines minus zero
+    char *z85block = ucmalloc(zlen);
+    strncpy(z85block, raw+strlen(CSK_KEYFILE_HEAD), zlen);
+    size_t outlen;
+    unsigned char *decoded = csk_z85_decode(z85block, &outlen);
+    *clen = outlen;
+    return decoded;
+  }
+  else {
+    free(raw);
+    fprintf(stderr, "Unable to parse secret key file, invalid format!\n");
     return NULL;
   }
 
-  fseek(fd, 0, SEEK_END);
-  *clen = ftell(fd);
-  fseek(fd, 0, SEEK_SET);
-  
-  raw = ucmalloc(*clen + 1);
-
-  fread(raw, *clen, 1, fd);
-
-  return raw;
+  return NULL;
 }
 
 int s_get_meta (zcert_t *cert, char *prompt, char *name) {

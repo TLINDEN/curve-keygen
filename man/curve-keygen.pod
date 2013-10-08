@@ -20,7 +20,7 @@ curve-keygen - a utility to generate CURVE25519 keypairs.
 =head1 DESCRIPTION
 
 B<curve-genkey> generates a CURVE25519 keypair. It stores the public
-key in CZMQ's zcert format and the private key in binary form. If
+key in CZMQ's zcert format and the private key in Z85 encoded form. If
 the option B<-c> have been supplied or if no passphrase provided, the
 private key will be stored in zcert format as well.
 
@@ -67,8 +67,9 @@ The public key in CZMQ zcert format.
 =head1 BUGS
 
 Currently B<curve-keygen> stores the encrypted private key as
-raw binary stream to disk. This is not portable. A future version
-will save the key in IETF format or - once CZMQ provides support for it - 
+Z85 encoded string to disk. This is not a standarzied format.
+A future version will save the key in IETF format or
+- once CZMQ provides support for it - 
 in zcert-secret-format (however that might be named then).
 
 =head1 COPYRIGHT
