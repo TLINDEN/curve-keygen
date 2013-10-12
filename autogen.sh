@@ -18,11 +18,13 @@ set +x
 
 # generate the install include file
 (echo "#ifndef _HAVE_CSK"; echo "#define _HAVE_CSK"; echo) > include/csk.h
+(echo "#ifdef __cplusplus"; echo "extern \"C\" {"; echo "#endif"; echo) >> include/csk.h
 egrep -h "^#include" libcsk/*.h | grep -v '"' | sort -u >> include/csk.h
 ls libcsk/*.h | while read include; do
   (echo; echo "// +++ from $include: +++"; echo) >> include/csk.h
   grep -h -v _HAVE $include | egrep -v "^#include" >> include/csk.h
 done
+(echo "#ifdef __cplusplus"; echo "}"; echo "#endif"; echo) >> include/csk.h
 (echo; echo "#endif") >> include/csk.h
 
 

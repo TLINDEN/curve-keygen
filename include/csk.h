@@ -1,6 +1,10 @@
 #ifndef _HAVE_CSK
 #define _HAVE_CSK
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <czmq.h>
 #include <err.h>
 #include <errno.h>
@@ -299,6 +303,27 @@ unsigned char *csk_raw_load(char *filename, size_t *clen);
 
 // Get and store one header in certificate
 int s_get_meta (zcert_t *cert, char *prompt, char *name);
+
+// used for encrypted key files
+#define CSK_KEYFILE_HEAD "-----BEGIN CURVE25519 SECRET KEY-----"
+#define CSK_KEYFILE_FOOT "-----END CURVE25519 SECRET KEY-----"
+
+// convert a binary stream to one which gets accepted by zmq_z85_encode
+// we pad it with zeroes and put the number of zerores in front of it 
+unsigned char *csk_unpadfour(unsigned char *src, size_t srclen, size_t *dstlen);
+
+// the reverse of the above
+unsigned char *csk_unpadfour(unsigned char *src, size_t srclen, size_t *dstlen);
+
+// wrapper around zmq Z85 encoding function
+unsigned char *csk_z85_decode(char *z85block, size_t *dstlen);
+
+// the reverse of the above
+char *csk_z85_encode(unsigned char *raw, size_t srclen, size_t *dstlen);
+
+#ifdef __cplusplus
+}
+#endif
 
 
 #endif
