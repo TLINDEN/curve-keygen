@@ -4,7 +4,7 @@
 
 void csk_makenonce(unsigned char **nonce) {
   *nonce = ucmalloc(crypto_secretbox_NONCEBYTES);
-  arc4random_buf(*nonce, crypto_secretbox_NONCEBYTES);
+  randombytes_buf(*nonce, crypto_secretbox_NONCEBYTES);
 }
 
 
